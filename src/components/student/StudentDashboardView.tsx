@@ -21,26 +21,39 @@ interface StudentDashboardViewProps {
   currentStudent: Student;
   setActiveTab: (tab: StudentTabType) => void;
   onTrackApplication: (driveId: string) => void;
+  isVerificationSent?: boolean;
+  isSendingVerification?: boolean;
+  onSendVerification?: () => void;
 }
 
 export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
   currentStudent,
   setActiveTab,
-  onTrackApplication
+  onTrackApplication,
+  isVerificationSent = false,
+  isSendingVerification = false,
+  onSendVerification
 }) => {
-  const [sendingVerification, setSendingVerification] = useState(false);
-  const [verificationSent, setVerificationSent] = useState(false);
+  const [internalSending, setInternalSending] = useState(false);
+  const [internalSent, setInternalSent] = useState(false);
+
+  const sendingVerification = onSendVerification ? isSendingVerification : internalSending;
+  const verificationSent = onSendVerification ? isVerificationSent : internalSent;
 
   const handleSendVerification = async () => {
+    if (onSendVerification) {
+      onSendVerification();
+      return;
+    }
     if (!currentStudent?.id) return;
-    setSendingVerification(true);
+    setInternalSending(true);
     try {
       await studentApi.verifyEmail(currentStudent.id);
-      setVerificationSent(true);
+      setInternalSent(true);
     } catch {
       // Ignored
     } finally {
-      setSendingVerification(false);
+      setInternalSending(false);
     }
   };
 
@@ -69,24 +82,27 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
 
           <div className="shrink-0">
             {verificationSent ? (
-              <span className="px-4 py-2 rounded-xl bg-emerald-100 text-emerald-800 font-extrabold text-xs flex items-center gap-1.5 border border-emerald-200">
-                <CheckCircle2 size={16} className="text-emerald-600" />
-                Verification Sent! Check Inbox
-              </span>
+              <div className="h-12 px-6 rounded-xl bg-emerald-100 text-emerald-800 font-extrabold text-sm flex items-center gap-2 border border-emerald-300/80 shadow-xs">
+                <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
+                <span>Verification Link Sent! Check Inbox</span>
+              </div>
             ) : (
               <button
                 type="button"
                 disabled={sendingVerification}
                 onClick={handleSendVerification}
-                className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
+                className="btn h-12 px-8 rounded-xl bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white font-extrabold text-sm shadow-md hover:shadow-lg transition-all cursor-pointer flex items-center justify-center gap-2.5 whitespace-nowrap border-0"
               >
                 {sendingVerification ? (
                   <>
-                    <Loader2 size={14} className="animate-spin" />
-                    Sending...
+                    <Loader2 size={18} className="animate-spin shrink-0" />
+                    <span>Sending Verification Email...</span>
                   </>
                 ) : (
-                  'Send Verification Link'
+                  <>
+                    <Mail size={18} className="shrink-0" />
+                    <span>Send Verification Link</span>
+                  </>
                 )}
               </button>
             )}
@@ -96,11 +112,22 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
       {/* Welcoming Hero Banner */}
       <div className="glass-card p-6 sm:p-8 rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50/80 via-indigo-50/40 to-white shadow-xs flex flex-col gap-3">
         <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2.5 flex-wrap">
             <span className="sp-badge sp-badge-success font-bold flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               Active Academic Session
             </span>
+            {currentStudent.emailVerified === true ? (
+              <span className="px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-1.5 shadow-2xs">
+                <CheckCircle2 size={14} className="text-emerald-600" />
+                <span>Email Verified</span>
+              </span>
+            ) : (
+              <span className="px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold flex items-center gap-1.5 shadow-2xs">
+                <AlertCircle size={14} className="text-amber-600" />
+                <span>Email Not Verified</span>
+              </span>
+            )}
           </div>
 
           {isPlaced && (

@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
-import { UserCheck, FileText, Upload, Save, CheckCircle2, Sparkles, AlertCircle, Loader2 } from 'lucide-react';
+import { UserCheck, FileText, Upload, Save, CheckCircle2, Sparkles, AlertCircle, Loader2, Mail } from 'lucide-react';
 import { studentApi } from '../../api/studentApi';
 
 interface StudentProfileViewProps {
   emailVerified?: boolean;
   studentId?: string;
+  isVerificationSent?: boolean;
+  isSendingVerification?: boolean;
+  onSendVerification?: () => void;
   profileName: string;
   setProfileName: (v: string) => void;
   profileEmail: string;
@@ -34,6 +37,9 @@ interface StudentProfileViewProps {
 export const StudentProfileView: React.FC<StudentProfileViewProps> = ({
   emailVerified,
   studentId,
+  isVerificationSent = false,
+  isSendingVerification = false,
+  onSendVerification,
   profileName,
   setProfileName,
   profileEmail,
@@ -59,19 +65,26 @@ export const StudentProfileView: React.FC<StudentProfileViewProps> = ({
   handleSaveProfile,
   onGoToAts
 }) => {
-  const [sendingVerification, setSendingVerification] = useState(false);
-  const [verificationSent, setVerificationSent] = useState(false);
+  const [internalSending, setInternalSending] = useState(false);
+  const [internalSent, setInternalSent] = useState(false);
+
+  const sendingVerification = onSendVerification ? isSendingVerification : internalSending;
+  const verificationSent = onSendVerification ? isVerificationSent : internalSent;
 
   const handleTriggerVerify = async () => {
+    if (onSendVerification) {
+      onSendVerification();
+      return;
+    }
     if (!studentId) return;
-    setSendingVerification(true);
+    setInternalSending(true);
     try {
       await studentApi.verifyEmail(studentId);
-      setVerificationSent(true);
+      setInternalSent(true);
     } catch {
-      // Handled silently or state
+      // Handled silently
     } finally {
-      setSendingVerification(false);
+      setInternalSending(false);
     }
   };
 
@@ -113,40 +126,51 @@ export const StudentProfileView: React.FC<StudentProfileViewProps> = ({
               <div className="flex items-center justify-between">
                 <label className="text-sm font-bold text-slate-700">Email Address</label>
                 {emailVerified === true ? (
-                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-200 flex items-center gap-1">
-                    <CheckCircle2 size={12} /> Verified
+                  <span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 text-xs font-extrabold border border-emerald-200 flex items-center gap-1.5 shadow-2xs">
+                    <CheckCircle2 size={14} className="text-emerald-600" /> Verified Email
                   </span>
                 ) : (
-                  <div className="flex items-center gap-2">
-                    <span className="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 text-xs font-bold border border-amber-200 flex items-center gap-1">
-                      <AlertCircle size={12} /> Unverified
-                    </span>
-                    {studentId && (
-                      <button
-                        type="button"
-                        onClick={handleTriggerVerify}
-                        disabled={sendingVerification || verificationSent}
-                        className="text-xs text-blue-600 font-bold hover:underline cursor-pointer flex items-center gap-1"
-                      >
-                        {sendingVerification ? (
-                          <Loader2 size={12} className="animate-spin" />
-                        ) : verificationSent ? (
-                          'Sent!'
-                        ) : (
-                          'Verify Email'
-                        )}
-                      </button>
-                    )}
-                  </div>
+                  <span className="px-3 py-1 rounded-full bg-amber-50 text-amber-800 text-xs font-extrabold border border-amber-200 flex items-center gap-1.5 shadow-2xs">
+                    <AlertCircle size={14} className="text-amber-600" /> Email Not Verified
+                  </span>
                 )}
               </div>
-              <input
-                type="email"
-                required
-                value={profileEmail}
-                onChange={(e) => setProfileEmail(e.target.value)}
-                className="input-field"
-              />
+              <div className="flex flex-col sm:flex-row gap-3 items-stretch">
+                <input
+                  type="email"
+                  required
+                  value={profileEmail}
+                  onChange={(e) => setProfileEmail(e.target.value)}
+                  className="input-field flex-1"
+                />
+                {emailVerified !== true && studentId && (
+                  verificationSent ? (
+                    <div className="h-12 px-6 rounded-xl bg-emerald-100 text-emerald-800 font-extrabold text-sm flex items-center justify-center gap-2 border border-emerald-300/80 shadow-xs shrink-0">
+                      <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
+                      <span>Link Sent! Check Inbox</span>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleTriggerVerify}
+                      disabled={sendingVerification}
+                      className="btn btn-primary h-12 px-7 rounded-xl font-extrabold text-sm shadow-md transition-all cursor-pointer flex items-center justify-center gap-2.5 shrink-0 whitespace-nowrap"
+                    >
+                      {sendingVerification ? (
+                        <>
+                          <Loader2 size={18} className="animate-spin shrink-0" />
+                          <span>Sending Link...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Mail size={18} className="shrink-0" />
+                          <span>Verify Email</span>
+                        </>
+                      )}
+                    </button>
+                  )
+                )}
+              </div>
             </div>
           </div>
 

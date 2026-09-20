@@ -223,6 +223,7 @@ export interface StudentWithPlacement {
   resumeScore: number;
   projectsCount: number;
   resumeText: string;
+  emailVerified?: boolean;
 }
 
 export interface ApplicationResponse {

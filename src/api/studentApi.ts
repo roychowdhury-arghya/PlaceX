@@ -111,6 +111,7 @@ export const studentApi = {
         resumeScore: 0,
         projectsCount: 0,
         resumeText: "",
+        emailVerified: s.emailVerified,
       };
     });
   },

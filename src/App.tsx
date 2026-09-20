@@ -449,6 +449,7 @@ function AppContent() {
           resumeText: '',
           applications: appsByStudent.get(String(s.id)) || [],
           department: s.department,
+          emailVerified: s.emailVerified,
         }));
         setStudents(mappedStudents);
 

@@ -146,6 +146,25 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
   const [uploadedCVName, setUploadedCVName] = useState('');
 
   /*
+   * Shared Email Verification State
+   */
+  const [isSendingVerification, setIsSendingVerification] = useState(false);
+  const [isVerificationSent, setIsVerificationSent] = useState(false);
+
+  const handleSendVerificationEmail = async () => {
+    if (!currentStudent?.id) return;
+    setIsSendingVerification(true);
+    try {
+      await studentApi.verifyEmail(currentStudent.id);
+      setIsVerificationSent(true);
+    } catch {
+      // Handled silently
+    } finally {
+      setIsSendingVerification(false);
+    }
+  };
+
+  /*
    * Reset profile inputs when student changes
    */
   useEffect(() => {
@@ -158,6 +177,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
     setProfileSkills(currentStudent.skills.join(', '));
     setProfileResume(currentStudent.resumeText || '');
     setResumeTextInput(currentStudent.resumeText || '');
+    setIsVerificationSent(false);
   }, [currentStudent.id]);
 
   /*
@@ -395,6 +415,9 @@ const TAB_LABELS: Record<StudentTabType, string> = {
                   setSelectedApplicationId(driveId);
                   handleTabChange('visualizer');
                 }}
+                isSendingVerification={isSendingVerification}
+                isVerificationSent={isVerificationSent}
+                onSendVerification={handleSendVerificationEmail}
               />
             )}
 
@@ -475,6 +498,9 @@ const TAB_LABELS: Record<StudentTabType, string> = {
               <StudentProfileView
                 emailVerified={currentStudent.emailVerified}
                 studentId={currentStudent.id}
+                isSendingVerification={isSendingVerification}
+                isVerificationSent={isVerificationSent}
+                onSendVerification={handleSendVerificationEmail}
                 profileName={profileName}
                 setProfileName={setProfileName}
                 profileEmail={profileEmail}
