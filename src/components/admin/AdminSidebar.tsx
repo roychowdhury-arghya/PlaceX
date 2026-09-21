@@ -46,10 +46,10 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
     { id: 'calendar' as AdminTabType, label: 'Placement Calendar', icon: CalendarIcon },
     { id: 'students' as AdminTabType, label: 'Student Database', icon: Users },
     {
-  id: 'alumni' as AdminTabType,
-  label: 'Alumni Management',
-  icon: GraduationCap
-},
+      id: 'alumni' as AdminTabType,
+      label: 'Alumni - Recruiter',
+      icon: GraduationCap
+    },
     { id: 'tracker' as AdminTabType, label: 'Live Round Tracker', icon: GitMerge },
     { id: 'hr' as AdminTabType, label: 'HR Outreach', icon: Mail }
   ];

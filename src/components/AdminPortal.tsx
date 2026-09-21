@@ -28,8 +28,6 @@ interface AdminPortalProps {
   recruiters?: Recruiter[];
 
   onApproveRecruiter?: (id: string | number) => void;
-  onApproveAlumni: (id: string) => void;
-  onRejectAlumni: (id: string) => void;
   calendarEvents?: CalendarEvent[];
   onAddCalendarEvent?: (newEvent: CalendarEvent) => void;
   onLogout: () => void;
@@ -48,8 +46,6 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   alumni,
   recruiters = [],
   onApproveRecruiter,
-  onApproveAlumni,
-  onRejectAlumni,
   calendarEvents,
   onAddCalendarEvent,
   onSaveFeedback,
@@ -143,7 +139,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [studentSearch, setStudentSearch] = useState('');
   const [branchFilter, setBranchFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
-  const [minCgpaFilter, setMinCgpaFilter] = useState(5.0);
+  const [minCgpaFilter, setMinCgpaFilter] = useState(0.0);
   const [minAtsFilter, setMinAtsFilter] = useState(0);
 
   // Resume Review Modal State
@@ -458,8 +454,6 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 alumni={alumni}
                 recruiters={recruiters}
                 onApproveRecruiter={onApproveRecruiter}
-                onApprove={onApproveAlumni}
-                onReject={onRejectAlumni}
               />
             )}
 

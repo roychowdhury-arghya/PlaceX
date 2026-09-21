@@ -5,6 +5,7 @@ import type {
   StudentRoundVisualizerResponse,
   ApplicationResponse,
   StudentWithPlacement,
+  JobPostingResponse,
 } from "./types";
 import { applicationApi } from "./applicationApi";
 import { jobPostingApi } from "./jobPostingApi";
@@ -75,23 +76,28 @@ export const studentApi = {
       method: "POST",
     }),
 
+  confirmVerificationToken: (token: string) =>
+    request<string>(`/students/verify-email?token=${encodeURIComponent(token)}`),
+
   getAllWithPlacementInfo: async (): Promise<StudentWithPlacement[]> => {
     const [students, applications, jobPostings] = await Promise.all([
-      request<StudentResponse[]>("/students/all"),
-      applicationApi.getAll(),
-      jobPostingApi.getAll(),
+      request<StudentResponse[]>("/students/all").catch(() => []),
+      applicationApi.getAll().catch(() => []),
+      jobPostingApi.getAll().catch(() => []),
     ]);
 
-    const jobPostingById = new Map(jobPostings.map((jp) => [jp.id, jp]));
+    const jobPostingById = new Map<number, JobPostingResponse>(
+      (jobPostings || []).map((jp) => [jp.id, jp])
+    );
 
     const placedByStudent = new Map<string, ApplicationResponse>();
-    for (const app of applications) {
+    for (const app of applications || []) {
       if (app.status === "SHORTLISTED") {
         placedByStudent.set(app.studentId, app);
       }
     }
 
-    return students.map((s): StudentWithPlacement => {
+    return (students || []).map((s): StudentWithPlacement => {
       const placedApp = placedByStudent.get(s.id);
       const placedPosting = placedApp
         ? jobPostingById.get(placedApp.jobPostingId)
@@ -105,7 +111,7 @@ export const studentApi = {
         backlogs: s.activeBacklogs,
         placementStatus: placedApp ? "Placed" : "Unplaced",
         placedCompany: placedApp?.companyName,
-        placedPackage: placedPosting?.salary
+        placedPackage: placedPosting?.salary != null
           ? `${placedPosting.salary} LPA`
           : undefined,
         resumeScore: 0,

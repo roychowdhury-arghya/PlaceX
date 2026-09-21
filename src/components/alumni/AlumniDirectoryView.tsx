@@ -27,7 +27,7 @@ export const AlumniDirectoryView: React.FC<AlumniDirectoryViewProps> = ({
   const [deptFilter, setDeptFilter] = useState('ALL');
 
   const approvedAlumni = useMemo(() => {
-    return alumniList.filter((a) => a.alumniStatus === 'APPROVED' || !a.alumniStatus);
+    return alumniList;
   }, [alumniList]);
 
   const filtered = useMemo(() => {

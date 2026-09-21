@@ -89,9 +89,6 @@ export const StudentAlumniView: React.FC<StudentAlumniViewProps> = ({
     const query = searchQuery.trim().toLowerCase();
 
     return alumni.filter((item) => {
-      const isApproved = item.alumniStatus === 'APPROVED' || !item.alumniStatus;
-      if (!isApproved) return false;
-
       if (!query) return true;
 
       return [

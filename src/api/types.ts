@@ -62,6 +62,7 @@ export interface JobPostingResponse {
 
   companyId?: number | null;
   companyName?: string | null;
+  company?: CompanyResponse | null;
 
   location?: string | null;
   department?: string | null;

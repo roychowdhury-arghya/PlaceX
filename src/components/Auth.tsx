@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 
 import type { Student, Recruiter } from '../mockData';
-import type { Alumni, AlumniRegistrationRequest } from '../api/alumniApi';
+import { alumniApi, type Alumni, type AlumniRegistrationRequest } from '../api/alumniApi';
 import { authApi } from '../api/authApi';
 import { studentApi } from '../api/studentApi';
 import { recruiterApi } from '../api/recruiterApi';
@@ -220,10 +220,28 @@ export const Auth: React.FC<AuthProps> = ({
             localStorage.setItem('refreshToken', res.refreshToken);
           }
           localStorage.setItem('role', res.role || 'STUDENT');
-          localStorage.setItem('studentId', loginInput);
-        }
 
-        onLogin('student', loginInput);
+          // Resolve student registration ID (e.g. 241000110549) if identifier was an email
+          let resolvedStudentId = loginInput;
+          try {
+            const allStudents = await studentApi.getAll();
+            const found = allStudents.find(
+              (s) =>
+                String(s.id).toLowerCase().trim() === loginInput.toLowerCase() ||
+                (s.email && s.email.toLowerCase().trim() === loginInput.toLowerCase())
+            );
+            if (found) {
+              resolvedStudentId = String(found.id);
+            }
+          } catch {
+            // Fallback to loginInput
+          }
+
+          localStorage.setItem('studentId', resolvedStudentId);
+          onLogin('student', resolvedStudentId);
+        } else {
+          onLogin('student', loginInput);
+        }
       } catch (err: any) {
         localStorage.removeItem('token');
         localStorage.removeItem('refreshToken');
@@ -415,13 +433,33 @@ export const Auth: React.FC<AuthProps> = ({
             localStorage.setItem('refreshToken', res.refreshToken);
           }
           localStorage.setItem('role', res.role || 'ALUMNI');
-        }
 
-        onLogin('alumni', loginEmail);
+          let resolvedAlumniId = loginEmail;
+          try {
+            const allAlumni = await alumniApi.getAll();
+            const found = allAlumni.find(
+              (a) =>
+                String(a.id).toLowerCase().trim() === loginEmail.toLowerCase() ||
+                (a.email && a.email.toLowerCase().trim() === loginEmail.toLowerCase())
+            );
+            if (found) {
+              resolvedAlumniId = String(found.id);
+            }
+          } catch {
+            // Fallback
+          }
+
+          localStorage.setItem('alumniId', resolvedAlumniId);
+          onLogin('alumni', resolvedAlumniId);
+        } else {
+          localStorage.setItem('alumniId', loginEmail);
+          onLogin('alumni', loginEmail);
+        }
       } catch (err: any) {
         localStorage.removeItem('token');
         localStorage.removeItem('refreshToken');
         localStorage.removeItem('role');
+        localStorage.removeItem('alumniId');
         setError(err?.message || 'Invalid alumni credentials.');
       } finally {
         setIsSubmitting(false);
@@ -508,7 +546,7 @@ export const Auth: React.FC<AuthProps> = ({
       setStudentPassword('');
       setAuthMode('login');
       setSearchParams({ mode: 'login' });
-      setError('Registration submitted. Please wait to be verified/approved by TPO before signing in.');
+      setError('Alumni account created successfully. You can now sign in.');
     } catch (error) {
       setError(
         error instanceof Error ? error.message : 'Unable to register alumni.'
@@ -560,14 +598,28 @@ export const Auth: React.FC<AuthProps> = ({
         );
 
         if (realRecruiter) {
+          if (realRecruiter.recruiterStatus !== 'APPROVED') {
+            localStorage.removeItem('token');
+            localStorage.removeItem('refreshToken');
+            localStorage.removeItem('role');
+            if (realRecruiter.recruiterStatus === 'REJECTED') {
+              setError('Your recruiter account request has been rejected by TPO.');
+            } else {
+              setError('Your recruiter account is pending TPO approval. Please wait for the TPO to approve your account before logging in.');
+            }
+            return;
+          }
+          localStorage.setItem('recruiterId', String(realRecruiter.id));
           onLogin('recruiter', String(realRecruiter.id));
         } else {
+          localStorage.setItem('recruiterId', identifier);
           onLogin('recruiter', identifier);
         }
       } catch (err: any) {
         localStorage.removeItem('token');
         localStorage.removeItem('refreshToken');
         localStorage.removeItem('role');
+        localStorage.removeItem('recruiterId');
         setError(err?.message || 'Invalid recruiter credentials.');
       } finally {
         setIsSubmitting(false);
@@ -604,6 +656,7 @@ export const Auth: React.FC<AuthProps> = ({
       password: recPassword,
       companyName: recCompany.trim(),
       designation: recDesignation.trim() || 'Recruiter',
+      recruiterStatus: 'PENDING',
     };
 
     setIsSubmitting(true);
@@ -621,7 +674,7 @@ export const Auth: React.FC<AuthProps> = ({
       setRecruiterPassword('');
       setAuthMode('login');
       setSearchParams({ mode: 'login' });
-      setError('Recruiter account created successfully. You can now sign in.');
+      setError('Recruiter account registered successfully. Please wait for TPO approval before logging in.');
     } catch (err: any) {
       setError(err?.message || 'Recruiter registration failed.');
     } finally {
@@ -1478,34 +1531,6 @@ export const Auth: React.FC<AuthProps> = ({
                         </div>
                       </div>
 
-                      <div className="auth-alumni-info-card">
-
-                        <div className="flex items-start gap-3">
-
-                          <Clock3
-                            size={20}
-                            className="shrink-0"
-                          />
-
-                          <div>
-
-                            <strong>
-                              TPO Approval Required
-                            </strong>
-
-                            <p>
-                              Alumni accounts must
-                              be approved by the
-                              TPO before you can
-                              sign in.
-                            </p>
-
-                          </div>
-
-                        </div>
-
-                      </div>
-
                       <button
                         type="submit"
                         className="auth-submit-btn mt-3"
@@ -1519,7 +1544,7 @@ export const Auth: React.FC<AuthProps> = ({
                               size={18}
                               className="animate-spin"
                             />
-                            Checking Approval…
+                            Signing In…
                           </>
                         ) : (
                           <>
@@ -1834,37 +1859,7 @@ export const Auth: React.FC<AuthProps> = ({
                         </div>
                       </div>
 
-                      {/* Approval information */}
 
-                      <div className="auth-alumni-info-card">
-
-                        <div className="flex items-start gap-3">
-
-                          <CheckCircle2
-                            size={20}
-                            className="shrink-0"
-                          />
-
-                          <div>
-
-                            <strong>
-                              Alumni Registration
-                            </strong>
-
-                            <p>
-                              Your registration will
-                              be submitted to the TPO
-                              for approval. You will
-                              only be able to access
-                              the Alumni Portal after
-                              your account is approved.
-                            </p>
-
-                          </div>
-
-                        </div>
-
-                      </div>
 
                       <button
                         type="submit"
@@ -1985,6 +1980,23 @@ export const Auth: React.FC<AuthProps> = ({
                             )}
                           </button>
 
+                        </div>
+                      </div>
+
+                      <div className="auth-alumni-info-card my-3">
+                        <div className="flex items-start gap-3">
+                          <Clock3
+                            size={20}
+                            className="shrink-0 text-amber-500"
+                          />
+                          <div>
+                            <strong>
+                              TPO Approval Required
+                            </strong>
+                            <p>
+                              Recruiter accounts must be approved by the TPO before you can sign in.
+                            </p>
+                          </div>
                         </div>
                       </div>
 
@@ -2158,6 +2170,23 @@ export const Auth: React.FC<AuthProps> = ({
                             className="auth-input-field"
                           />
 
+                        </div>
+                      </div>
+
+                      <div className="auth-alumni-info-card my-3">
+                        <div className="flex items-start gap-3">
+                          <CheckCircle2
+                            size={20}
+                            className="shrink-0 text-blue-500"
+                          />
+                          <div>
+                            <strong>
+                              Recruiter Registration
+                            </strong>
+                            <p>
+                              Your registration will be submitted to the TPO for approval. You will only be able to access the Recruiter Portal after your account is approved by TPO.
+                            </p>
+                          </div>
                         </div>
                       </div>
 

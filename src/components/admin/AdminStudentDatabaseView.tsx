@@ -95,16 +95,15 @@ export const AdminStudentDatabaseView: React.FC<AdminStudentDatabaseViewProps> =
   useEffect(() => {
     if (selectedStudentForVisualizer?.id) {
       applicationApi
-        .getAll()
-        .then((allApps) => {
-          const sApps = allApps.filter((a) => {
-            if (String(a.studentId) !== String(selectedStudentForVisualizer.id)) return false;
+        .getByStudent(String(selectedStudentForVisualizer.id))
+        .then((sApps) => {
+          const filteredApps = (sApps || []).filter((a) => {
             const matchedDrive = drives.find((d) => String(d.id) === String(a.jobPostingId));
             if (matchedDrive && !isOnCampusDrive(matchedDrive)) return false;
             return true;
           });
-          if (sApps.length > 0) {
-            const mapped = sApps.map((app) => {
+          if (filteredApps.length > 0) {
+            const mapped = filteredApps.map((app) => {
               const matchedDrive = drives.find(
                 (d) => String(d.id) === String(app.jobPostingId)
               );

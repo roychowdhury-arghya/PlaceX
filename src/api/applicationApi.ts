@@ -6,7 +6,10 @@ import type {
 
 export const applicationApi = {
   getAll: () =>
-    request<ApplicationResponse[]>("/applications/all"),
+    request<ApplicationResponse[]>("/applications/all").catch((err) => {
+      console.warn("[applicationApi.getAll] GET /applications/all failed (backend dependency). Returning empty array fallback.", err);
+      return [] as ApplicationResponse[];
+    }),
 
   getById: (id: number) =>
     request<ApplicationResponse>(`/applications/${id}`),
@@ -24,7 +27,10 @@ export const applicationApi = {
 
   updateStatus: (id: number, status: string) => {
     const s = status.trim().toUpperCase();
-    const validStatus = s === "SHORTLISTED" || s === "REJECTED" ? s : "APPLIED";
+    const validStatus =
+      s === "SHORTLISTED" || s === "REJECTED" || s === "SELECTED"
+        ? s
+        : "APPLIED";
     return request<ApplicationResponse>(
       `/applications/${id}/status?newStatus=${encodeURIComponent(validStatus)}`,
       { method: "PATCH" }

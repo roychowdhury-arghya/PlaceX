@@ -33,8 +33,7 @@ export const AdminMobileDrawer: React.FC<AdminMobileDrawerProps> = ({
     { id: 'drives' as AdminTabType, label: 'Placement Drives', icon: Briefcase },
     { id: 'calendar' as AdminTabType, label: 'Calendar', icon: CalendarIcon },
     { id: 'students' as AdminTabType, label: 'Student Database', icon: Users },
-    { id: 'recruiters' as AdminTabType, label: 'Recruiter Management', icon: Users },
-    { id: 'alumni' as AdminTabType, label: 'Alumni Directory', icon: Users },
+    { id: 'alumni' as AdminTabType, label: 'Alumni - Recruiter', icon: Users },
     { id: 'tracker' as AdminTabType, label: 'Live Round Tracker', icon: GitMerge },
     { id: 'hr' as AdminTabType, label: 'HR Outreach', icon: Mail }
   ];

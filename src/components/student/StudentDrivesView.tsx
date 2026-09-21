@@ -36,9 +36,9 @@ export const StudentDrivesView: React.FC<StudentDrivesViewProps> = ({
   const availableRoles = useMemo(() => {
     const roles = drives
       .filter((drive) =>
-        (selectedRecruitmentType === 'ON_CAMPUS'
-          ? isOnCampusDrive(drive)
-          : isOffCampusDrive(drive)) && isActiveDrive(drive)
+        selectedRecruitmentType === 'ON_CAMPUS'
+          ? isOnCampusDrive(drive) && isActiveDrive(drive)
+          : isOffCampusDrive(drive)
       )
       .map(
         (drive) =>
@@ -66,7 +66,8 @@ export const StudentDrivesView: React.FC<StudentDrivesViewProps> = ({
           ? isOnCampusDrive(drive)
           : isOffCampusDrive(drive);
 
-      const matchesStatus = isActiveDrive(drive);
+      const matchesStatus =
+        selectedRecruitmentType === 'OFF_CAMPUS' ? true : isActiveDrive(drive);
 
       const role =
         drive.roleCategory ||

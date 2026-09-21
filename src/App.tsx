@@ -95,11 +95,22 @@ const ProtectedRoute = ({
   children,
   allowedRole,
   session,
+  isInitializingAuth = false,
 }: {
   children: React.ReactElement;
   allowedRole: UserRole;
   session: Session | null;
+  isInitializingAuth?: boolean;
 }) => {
+  if (isInitializingAuth) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center gap-4">
+        <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-slate-400 font-medium text-sm">Restoring authentication session...</p>
+      </div>
+    );
+  }
+
   /*
    * User is not logged in.
    */
@@ -363,34 +374,60 @@ function AppContent() {
   ======================================================= */
 
   const [session, setSession] = useState<Session | null>(null);
+  const [isInitializingAuth, setIsInitializingAuth] = useState<boolean>(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const storedRole = localStorage.getItem('role');
-    const storedStudentId = localStorage.getItem('studentId');
+    const restoreSession = () => {
+      const token = localStorage.getItem('token');
+      const storedRole = localStorage.getItem('role');
+      const storedStudentId = localStorage.getItem('studentId');
+      const storedRecruiterId = localStorage.getItem('recruiterId');
+      const storedAlumniId = localStorage.getItem('alumniId');
 
-    if (token && storedRole) {
-      const roleLower = storedRole.toLowerCase();
-      const mappedRole: UserRole =
-        roleLower === 'student'
-          ? 'student'
-          : roleLower === 'recruiter'
-          ? 'recruiter'
-          : roleLower === 'alumni'
-          ? 'alumni'
-          : 'admin';
+      if (token && storedRole) {
+        const roleLower = storedRole.toLowerCase();
+        const mappedRole: UserRole =
+          roleLower === 'student'
+            ? 'student'
+            : roleLower === 'recruiter'
+            ? 'recruiter'
+            : roleLower === 'alumni'
+            ? 'alumni'
+            : 'admin';
 
-      setSession({
-        role: mappedRole,
-        studentId: mappedRole === 'student' ? (storedStudentId || undefined) : undefined,
-      });
-    }
+        setSession({
+          role: mappedRole,
+          studentId: mappedRole === 'student' ? (storedStudentId || undefined) : undefined,
+          recruiterId: mappedRole === 'recruiter' ? (storedRecruiterId || undefined) : undefined,
+          alumniId: mappedRole === 'alumni' ? (storedAlumniId || undefined) : undefined,
+        });
+      } else {
+        setSession(null);
+      }
+      setIsInitializingAuth(false);
+    };
+
+    restoreSession();
+
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'token' || e.key === 'role' || e.key === 'studentId' || e.key === 'recruiterId' || e.key === 'alumniId') {
+        restoreSession();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
   }, []);
 
   useEffect(() => {
     const loadBackendData = async () => {
       const token = localStorage.getItem('token');
-      if (!token) return;
+      if (!token) {
+        setIsInitializingAuth(false);
+        return;
+      }
 
       try {
         const [
@@ -415,11 +452,22 @@ function AppContent() {
         setBlogs(blogsData);
         console.log("BLOGS FROM BACKEND:", blogsData);
 
+        const storedStudentId = localStorage.getItem('studentId');
+        let myApps: any[] = [];
+        if (storedStudentId) {
+          try {
+            myApps = await applicationApi.getByStudent(storedStudentId).catch(() => []);
+          } catch {
+            myApps = [];
+          }
+        }
+
         const appsByStudent = new Map<string, Application[]>();
-        for (const app of applicationsList) {
-          const sId = String(app.studentId);
+        for (const app of applicationsList || []) {
+          const sId = String(app.studentId).toLowerCase().trim();
           const currentApps = appsByStudent.get(sId) || [];
           currentApps.push({
+            id: app.id ? String(app.id) : undefined,
             driveId: String(app.jobPostingId),
             jobPostingId: String(app.jobPostingId),
             companyName: app.companyName || '',
@@ -431,26 +479,76 @@ function AppContent() {
           appsByStudent.set(sId, currentApps);
         }
 
-        const mappedStudents: Student[] = studentsWithPlacement.map((s) => ({
-          id: s.id,
-          name: s.name,
-          email: s.email,
-          registrationNumber: s.id,
-          password: '',
-          branch: s.department,
-          cgpa: s.cgpa,
-          backlogs: s.backlogs,
-          placementStatus: s.placementStatus,
-          placedCompany: s.placedCompany,
-          placedPackage: s.placedPackage,
-          resumeScore: 85,
-          skills: [],
-          projectsCount: 0,
-          resumeText: '',
-          applications: appsByStudent.get(String(s.id)) || [],
-          department: s.department,
-          emailVerified: s.emailVerified,
-        }));
+        if (storedStudentId && Array.isArray(myApps) && myApps.length > 0) {
+          const sIdKey = String(storedStudentId).toLowerCase().trim();
+          const mappedMyApps: Application[] = myApps.map((app) => ({
+            id: app.id ? String(app.id) : undefined,
+            driveId: String(app.jobPostingId),
+            jobPostingId: String(app.jobPostingId),
+            companyName: app.companyName || '',
+            role: app.jobTitle || '',
+            appliedDate: app.appliedDate || '',
+            status: app.status === 'SHORTLISTED' ? 'Selected' : app.status === 'REJECTED' ? 'Rejected' : 'Applied',
+            currentRoundIndex: 0,
+          }));
+          appsByStudent.set(sIdKey, mappedMyApps);
+        }
+
+        let mappedStudents: Student[] = studentsWithPlacement.map((s) => {
+          const sIdKey = String(s.id).toLowerCase().trim();
+          const studentApps = appsByStudent.get(sIdKey) || 
+            (storedStudentId && (sIdKey === storedStudentId.toLowerCase().trim()) ? appsByStudent.get(storedStudentId.toLowerCase().trim()) : undefined) || [];
+          return {
+            id: s.id,
+            name: s.name,
+            email: s.email,
+            registrationNumber: s.id,
+            password: '',
+            branch: s.department,
+            cgpa: s.cgpa,
+            backlogs: s.backlogs,
+            placementStatus: s.placementStatus,
+            placedCompany: s.placedCompany,
+            placedPackage: s.placedPackage,
+            resumeScore: 85,
+            skills: [],
+            projectsCount: 0,
+            resumeText: '',
+            applications: studentApps,
+            department: s.department,
+            emailVerified: s.emailVerified,
+          };
+        });
+
+        if (storedStudentId && !mappedStudents.some((s) => String(s.id).toLowerCase().trim() === storedStudentId.toLowerCase().trim())) {
+          try {
+            const singleStudent = await studentApi.getById(storedStudentId);
+            if (singleStudent) {
+              const sIdKey = String(singleStudent.id).toLowerCase().trim();
+              mappedStudents.push({
+                id: singleStudent.id,
+                name: singleStudent.name,
+                email: singleStudent.email,
+                registrationNumber: singleStudent.id,
+                password: '',
+                branch: singleStudent.department,
+                cgpa: singleStudent.cgpa ?? singleStudent.CGPA ?? 0,
+                backlogs: singleStudent.activeBacklogs ?? 0,
+                placementStatus: 'Unplaced',
+                resumeScore: 85,
+                skills: [],
+                projectsCount: 0,
+                resumeText: singleStudent.resumeUrl || '',
+                applications: appsByStudent.get(sIdKey) || [],
+                department: singleStudent.department,
+                emailVerified: singleStudent.emailVerified,
+              });
+            }
+          } catch {
+            // Ignore single fetch error
+          }
+        }
+
         setStudents(mappedStudents);
 
         const mappedDrives: PlacementDrive[] = drivesWithCompany.map((d) => ({
@@ -493,6 +591,7 @@ function AppContent() {
           companyId: r.id,
           designation: r.designation || 'Recruiter',
           industry: r.industry || 'Technology',
+          recruiterStatus: r.recruiterStatus || 'PENDING',
           postedDrives: [],
         }));
         setRecruiters(mappedRecruiters);
@@ -500,6 +599,8 @@ function AppContent() {
         setCalendarEvents(eventsList);
       } catch (error) {
         console.error('Failed to load initial backend data:', error);
+      } finally {
+        setIsInitializingAuth(false);
       }
     };
 
@@ -528,6 +629,9 @@ function AppContent() {
       localStorage.removeItem('token');
       localStorage.removeItem('refreshToken');
       localStorage.removeItem('role');
+      localStorage.removeItem('studentId');
+      localStorage.removeItem('recruiterId');
+      localStorage.removeItem('alumniId');
       localStorage.removeItem('placed_session');
       setSession(null);
       triggerToast('Session expired or unauthorized. Please log in again.', 'warning');
@@ -588,6 +692,9 @@ function AppContent() {
     /* ---------------- RECRUITER ---------------- */
 
     if (role === 'recruiter') {
+      if (id) {
+        localStorage.setItem('recruiterId', id);
+      }
       setSession({
         role,
         recruiterId: id,
@@ -620,6 +727,9 @@ function AppContent() {
     /* ---------------- ALUMNI ---------------- */
 
     if (role === 'alumni') {
+      if (id) {
+        localStorage.setItem('alumniId', id);
+      }
       setSession({
         role,
         alumniId: id,
@@ -699,6 +809,9 @@ function AppContent() {
         ];
       });
 
+      if (realAlumni?.id) {
+        localStorage.setItem('alumniId', String(realAlumni.id));
+      }
       setSession({
         role: 'alumni',
         alumniId: String(realAlumni.id)
@@ -747,6 +860,9 @@ function AppContent() {
     localStorage.removeItem('token');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('role');
+    localStorage.removeItem('studentId');
+    localStorage.removeItem('recruiterId');
+    localStorage.removeItem('alumniId');
     localStorage.removeItem('placed_session');
     setSession(null);
 
@@ -1672,85 +1788,7 @@ function AppContent() {
     }
   };
 
-  /* =======================================================
-     APPROVE ALUMNI
-  ======================================================= */
 
-  const handleApproveAlumni = async (
-  alumniId: string
-): Promise<void> => {
-  try {
-    await alumniApi.approve(alumniId);
-
-    setAlumni((previousAlumni) =>
-      previousAlumni.map((person) =>
-        person.id === alumniId
-          ? {
-              ...person,
-              alumniStatus: 'APPROVED'
-            }
-          : person
-      )
-    );
-
-    triggerToast(
-      'Alumni approved successfully.',
-      'success'
-    );
-  } catch (error) {
-    console.error(
-      'Failed to approve alumni:',
-      error
-    );
-
-    triggerToast(
-      error instanceof Error
-        ? error.message
-        : 'Unable to approve alumni.',
-      'error'
-    );
-  }
-};
-
-
-  /* =======================================================
-     REJECT ALUMNI
-  ======================================================= */
-
-  const handleRejectAlumni = async (
-  alumniId: string
-): Promise<void> => {
-  try {
-    const person = alumni.find(
-      (item) => item.id === alumniId
-    );
-
-    await alumniApi.reject(alumniId);
-
-    setAlumni((previousAlumni) =>
-      previousAlumni.filter(
-        (item) => item.id !== alumniId
-      )
-    );
-
-    triggerToast(
-      `${person?.name || 'Alumni'} rejected.`,
-      'warning'
-    );
-  } catch (error) {
-    console.error(
-      'Failed to reject alumni:',
-      error
-    );
-
-    triggerToast(
-      error instanceof Error
-        ? error.message
-        : 'Unable to reject alumni.',
-      'error'
-    );
-  }
-};
 
   /* =======================================================
      ADD BLOG
@@ -2070,38 +2108,21 @@ const handleDeleteReferral = async (
   ======================================================= */
 
   const loggedInStudent = React.useMemo(() => {
-    if (session?.role !== 'student' || !session.studentId) return undefined;
-    const sId = session.studentId.toLowerCase().trim();
-    const found = students.find(
+    if (session?.role !== 'student') return undefined;
+    const sId = (session.studentId || localStorage.getItem('studentId') || '').toLowerCase().trim();
+    if (!sId) return undefined;
+    return students.find(
       (student) =>
         String(student.id).toLowerCase().trim() === sId ||
         (student.email && student.email.toLowerCase().trim() === sId) ||
         (student.registrationNumber && String(student.registrationNumber).toLowerCase().trim() === sId)
     );
-    if (found) return found;
-
-    return {
-      id: session.studentId,
-      name: session.studentId.includes('@') ? session.studentId.split('@')[0] : `Student (${session.studentId})`,
-      email: session.studentId.includes('@') ? session.studentId : `${session.studentId}@student.univ.edu`,
-      registrationNumber: session.studentId,
-      password: '',
-      branch: 'Computer Science',
-      department: 'Computer Science',
-      cgpa: 8.0,
-      backlogs: 0,
-      placementStatus: 'Unplaced' as const,
-      resumeScore: 85,
-      skills: [],
-      projectsCount: 0,
-      resumeText: '',
-      applications: [],
-    };
   }, [session, students]);
 
   const loggedInRecruiter = React.useMemo(() => {
-    if (session?.role !== 'recruiter' || !session.recruiterId) return undefined;
-    const rId = session.recruiterId.toLowerCase().trim();
+    if (session?.role !== 'recruiter') return undefined;
+    const rId = (session.recruiterId || localStorage.getItem('recruiterId') || '').toLowerCase().trim();
+    if (!rId) return undefined;
     const found = recruiters.find(
       (recruiter) =>
         String(recruiter.id).toLowerCase().trim() === rId ||
@@ -2110,9 +2131,9 @@ const handleDeleteReferral = async (
     if (found) return found;
 
     return {
-      id: session.recruiterId,
-      name: session.recruiterId.includes('@') ? session.recruiterId.split('@')[0] : 'Recruiter',
-      email: session.recruiterId.includes('@') ? session.recruiterId : `${session.recruiterId}@company.com`,
+      id: rId,
+      name: rId.includes('@') ? rId.split('@')[0] : 'Recruiter',
+      email: rId.includes('@') ? rId : `${rId}@company.com`,
       password: '',
       companyName: 'Corporate',
       designation: 'Recruiter',
@@ -2121,8 +2142,9 @@ const handleDeleteReferral = async (
   }, [session, recruiters]);
 
   const loggedInAlumni = React.useMemo(() => {
-    if (session?.role !== 'alumni' || !session.alumniId) return undefined;
-    const aId = session.alumniId.toLowerCase().trim();
+    if (session?.role !== 'alumni') return undefined;
+    const aId = (session.alumniId || localStorage.getItem('alumniId') || '').toLowerCase().trim();
+    if (!aId) return undefined;
     const found = alumni.find(
       (item) =>
         String(item.id).toLowerCase().trim() === aId ||
@@ -2131,14 +2153,13 @@ const handleDeleteReferral = async (
     if (found) return found;
 
     return {
-      id: session.alumniId,
-      name: session.alumniId.includes('@') ? session.alumniId.split('@')[0] : 'Alumni',
-      email: session.alumniId.includes('@') ? session.alumniId : `${session.alumniId}@alumni.univ.edu`,
+      id: aId,
+      name: aId.includes('@') ? aId.split('@')[0] : 'Alumni',
+      email: aId.includes('@') ? aId : `${aId}@alumni.univ.edu`,
       graduationYear: new Date().getFullYear(),
       currentCompany: 'Verified Industry',
       currentRole: 'Software Engineer',
       department: 'CSE',
-      alumniStatus: 'APPROVED' as const,
     };
   }, [session, alumni]);
 
@@ -2420,7 +2441,11 @@ const handleDeleteReferral = async (
           <Route
             path="/"
             element={
-              <LandingPage />
+              session ? (
+                <Navigate to={`/${session.role}`} replace />
+              ) : (
+                <LandingPage />
+              )
             }
           />
 
@@ -2456,32 +2481,36 @@ const handleDeleteReferral = async (
           <Route
             path="/auth"
             element={
-              <Auth
-                students={students}
-                recruiters={recruiters}
-                alumni={alumni}
+              session ? (
+                <Navigate to={`/${session.role}`} replace />
+              ) : (
+                <Auth
+                  students={students}
+                  recruiters={recruiters}
+                  alumni={alumni}
 
-                onLogin={
-                  handleLogin
-                }
+                  onLogin={
+                    handleLogin
+                  }
 
-                onRegister={
-                  handleRegisterStudent
-                }
+                  onRegister={
+                    handleRegisterStudent
+                  }
 
-                onRegisterRecruiter={
-                  handleRegisterRecruiter
-                }
+                  onRegisterRecruiter={
+                    handleRegisterRecruiter
+                  }
 
-                onRegisterAlumni={
-                  handleRegisterAlumni
-                }
-                onAlumniLogin={handleAlumniLogin}
+                  onRegisterAlumni={
+                    handleRegisterAlumni
+                  }
+                  onAlumniLogin={handleAlumniLogin}
 
-                onSeedData={
-                  handleSeedData
-                }
-              />
+                  onSeedData={
+                    handleSeedData
+                  }
+                />
+              )
             }
           />
 
@@ -2497,6 +2526,7 @@ const handleDeleteReferral = async (
               <ProtectedRoute
                 allowedRole="student"
                 session={session}
+                isInitializingAuth={isInitializingAuth}
               >
 
                 {loggedInStudent ? (
@@ -2516,10 +2546,11 @@ const handleDeleteReferral = async (
 
                 ) : (
 
-                  <Navigate
-                    to="/auth?mode=login"
-                    replace
-                  />
+                  <div className="min-h-[60vh] bg-slate-950 text-white flex flex-col items-center justify-center p-6 text-center rounded-2xl m-4">
+                    <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+                    <h2 className="text-lg font-bold mb-1">Loading Student Profile...</h2>
+                    <p className="text-slate-400 text-sm">Fetching authenticated candidate details from server database.</p>
+                  </div>
 
                 )}
 
@@ -2539,6 +2570,7 @@ const handleDeleteReferral = async (
               <ProtectedRoute
                 allowedRole="recruiter"
                 session={session}
+                isInitializingAuth={isInitializingAuth}
               >
 
                 {loggedInRecruiter ? (
@@ -2606,6 +2638,7 @@ const handleDeleteReferral = async (
               <ProtectedRoute
                 allowedRole="admin"
                 session={session}
+                isInitializingAuth={isInitializingAuth}
               >
 
                 <AdminPortal
@@ -2668,14 +2701,6 @@ const handleDeleteReferral = async (
                     handleApproveRecruiter
                   }
 
-                  onApproveAlumni={
-                    handleApproveAlumni
-                  }
-
-                  onRejectAlumni={
-                    handleRejectAlumni
-                  }
-
                 />
 
               </ProtectedRoute>
@@ -2694,6 +2719,7 @@ const handleDeleteReferral = async (
               <ProtectedRoute
                 allowedRole="alumni"
                 session={session}
+                isInitializingAuth={isInitializingAuth}
               >
 
                 {loggedInAlumni ? (

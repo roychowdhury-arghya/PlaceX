@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { jobPostingApi } from '../../api/jobPostingApi';
 import type { JobPostingResponse } from '../../api/types';
-import { isOffCampusDrive, isActiveDrive } from '../../utils/driveFilters';
+import { isOffCampusDrive } from '../../utils/driveFilters';
 
 interface StudentOffCampusViewProps {
   onApply?: (driveId: string) => void;
@@ -59,7 +59,7 @@ export const StudentOffCampusView: React.FC<StudentOffCampusViewProps> = ({
 
     try {
       const allPostings = await jobPostingApi.getAll();
-      const offCampusOnly = (allPostings || []).filter((job) => isOffCampusDrive(job) && isActiveDrive(job));
+      const offCampusOnly = (allPostings || []).filter((job) => isOffCampusDrive(job));
 
       console.log('[OffCampus] OFF_CAMPUS jobs count:', offCampusOnly.length);
       setJobs(offCampusOnly);

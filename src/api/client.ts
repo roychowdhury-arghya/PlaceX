@@ -97,6 +97,9 @@ async function request<T>(
       localStorage.removeItem("token");
       localStorage.removeItem("refreshToken");
       localStorage.removeItem("role");
+      localStorage.removeItem("studentId");
+      localStorage.removeItem("recruiterId");
+      localStorage.removeItem("alumniId");
       window.dispatchEvent(new Event("auth:unauthorized"));
     } else if (
       response.status === 401 &&
@@ -107,6 +110,9 @@ async function request<T>(
         localStorage.removeItem("token");
         localStorage.removeItem("refreshToken");
         localStorage.removeItem("role");
+        localStorage.removeItem("studentId");
+        localStorage.removeItem("recruiterId");
+        localStorage.removeItem("alumniId");
         window.dispatchEvent(new Event("auth:unauthorized"));
       }
     }

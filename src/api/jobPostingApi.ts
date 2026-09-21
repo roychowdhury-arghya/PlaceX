@@ -27,13 +27,22 @@ export const jobPostingApi = {
         (jp.companyId ? companyById.get(jp.companyId) : undefined) ||
         (jp.companyName ? companyByName.get(jp.companyName.trim().toLowerCase()) : undefined);
 
-      const recruitmentType: 'CAMPUS' | 'OFF_CAMPUS' =
-        jp.recruitmentType === 'CAMPUS' || jp.recruitmentType === 'OFF_CAMPUS'
-          ? jp.recruitmentType
-          : (company ? 'CAMPUS' : 'OFF_CAMPUS');
+      const isCampus =
+        jp.recruitmentType === 'CAMPUS' ||
+        (!jp.recruitmentType &&
+          (jp.eligibleCGPACutoff != null ||
+            jp.allowedBranches != null ||
+            jp.allowedBacklogs != null ||
+            jp.companyId != null ||
+            !jp.applyUrl));
+
+      const recruitmentType: 'CAMPUS' | 'OFF_CAMPUS' = isCampus
+        ? 'CAMPUS'
+        : 'OFF_CAMPUS';
 
       return {
         ...jp,
+        company: jp.company || company,
         recruitmentType,
         sourceType: jp.sourceType || (recruitmentType === 'OFF_CAMPUS' ? 'SCRAPER' : 'RECRUITER'),
       };
@@ -59,9 +68,9 @@ export const jobPostingApi = {
 
   getAllWithCompanyInfo: async (): Promise<DriveWithCompany[]> => {
   const [postings, companies, applications] = await Promise.all([
-    request<JobPostingResponse[]>("/job-postings/all"),
-    companyApi.getAll(),
-    applicationApi.getAll(),
+    request<JobPostingResponse[]>("/job-postings/all").catch(() => []),
+    companyApi.getAll().catch(() => []),
+    applicationApi.getAll().catch(() => []),
   ]);
 
   const companyById = new Map<number, CompanyResponse>();
@@ -91,10 +100,18 @@ export const jobPostingApi = {
           )
         : undefined);
 
-    const recruitmentType: 'CAMPUS' | 'OFF_CAMPUS' =
-      jp.recruitmentType === 'CAMPUS' || jp.recruitmentType === 'OFF_CAMPUS'
-        ? jp.recruitmentType
-        : (company ? 'CAMPUS' : 'OFF_CAMPUS');
+      const isCampus =
+        jp.recruitmentType === 'CAMPUS' ||
+        (!jp.recruitmentType &&
+          (jp.eligibleCGPACutoff != null ||
+            jp.allowedBranches != null ||
+            jp.allowedBacklogs != null ||
+            jp.companyId != null ||
+            !jp.applyUrl));
+
+      const recruitmentType: 'CAMPUS' | 'OFF_CAMPUS' = isCampus
+        ? 'CAMPUS'
+        : 'OFF_CAMPUS';
 
     const isOffCampus =
       recruitmentType === 'OFF_CAMPUS';
@@ -300,16 +317,31 @@ export const jobPostingApi = {
 
 export function isOnCampusDrive(drive: any): boolean {
   if (!drive) return false;
-  return drive.recruitmentType === 'CAMPUS';
+  const type = String(drive.recruitmentType || '').trim().toUpperCase();
+  return (
+    type === 'CAMPUS' ||
+    type === 'ON_CAMPUS' ||
+    type === 'ON CAMPUS' ||
+    (!drive.recruitmentType && (drive.cgpaCutoff != null || drive.allowedBranches != null || !drive.applyUrl))
+  );
 }
 
 export function isOffCampusDrive(drive: any): boolean {
   if (!drive) return false;
-  return drive.recruitmentType === 'OFF_CAMPUS';
+  const type = String(drive.recruitmentType || '').trim().toUpperCase();
+  const source = String(drive.sourceType || '').trim().toUpperCase();
+  return (
+    type === 'OFF_CAMPUS' ||
+    type === 'OFF CAMPUS' ||
+    type === 'SCRAPPER' ||
+    type === 'SCRAPER' ||
+    source === 'SCRAPER' ||
+    (!isOnCampusDrive(drive) && drive.applyUrl != null)
+  );
 }
 
 export function isActiveDrive(drive: any): boolean {
   if (!drive) return false;
   const status = String(drive.status || '').trim().toUpperCase();
-  return status === 'OPEN' || status === 'ACTIVE';
+  return status === '' || status === 'OPEN' || status === 'ACTIVE';
 }
